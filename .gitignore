@@ -1,0 +1,15 @@
+# ── Secrets / Environment ──
+.env
+*.env
+!.env.example
+
+# ── OS junk ──
+.DS_Store
+Thumbs.db
+
+# ── Editor configs ──
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

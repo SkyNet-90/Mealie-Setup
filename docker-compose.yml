@@ -1,0 +1,100 @@
+############################################################
+# Mealie Recipe Manager — Portainer Stack
+# ─────────────────────────────────────────────────────────
+# Deploy via Portainer → Stacks → Add Stack → Git Repository
+# All ${VARIABLES} are supplied through Portainer's
+# "Environment variables" section (or a .env loaded there).
+############################################################
+
+services:
+  # ── Mealie ────────────────────────────────────────────────
+  mealie:
+    image: ghcr.io/mealie-recipes/mealie:${MEALIE_IMAGE_TAG:-v3.10.2}
+    container_name: mealie
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 1000M
+    volumes:
+      - mealie-data:/app/data/
+    environment:
+      # ── General ──
+      ALLOW_SIGNUP: "false"
+      BASE_URL: ${BASE_URL:-https://recipes.jo-jo.net}
+      TZ: ${TZ:-America/New_York}
+      TOKEN_TIME: ${TOKEN_TIME:-48}
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+
+      # ── Default admin credentials (CHANGE after first login!) ──
+      DEFAULT_EMAIL: ${DEFAULT_EMAIL:-changeme@example.com}
+      DEFAULT_GROUP: ${DEFAULT_GROUP:-Home}
+      DEFAULT_HOUSEHOLD: ${DEFAULT_HOUSEHOLD:-Family}
+
+      # ── Security ──
+      SECURITY_MAX_LOGIN_ATTEMPTS: ${SECURITY_MAX_LOGIN_ATTEMPTS:-5}
+      SECURITY_USER_LOCKOUT_TIME: ${SECURITY_USER_LOCKOUT_TIME:-24}
+
+      # ── SMTP / Email (optional — uncomment & fill in Portainer) ──
+      # SMTP_HOST: ${SMTP_HOST}
+      # SMTP_PORT: ${SMTP_PORT:-587}
+      # SMTP_AUTH_STRATEGY: ${SMTP_AUTH_STRATEGY:-TLS}
+      # SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Mealie}
+      # SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL}
+      # SMTP_USER: ${SMTP_USER}
+      # SMTP_PASSWORD: ${SMTP_PASSWORD}
+    networks:
+      - internal
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      # Watchtower will auto-update this container
+      com.centurylinklabs.watchtower.enable: "true"
+
+  # ── Cloudflare Tunnel ────────────────────────────────────
+  # Exposes mealie at recipes.jo-jo.net without opening ports
+  # on your host. Create a tunnel in Cloudflare Zero Trust →
+  # Networks → Tunnels and grab the token.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared-mealie
+    restart: always
+    command: tunnel run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    networks:
+      - internal
+    depends_on:
+      - mealie
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
+
+  # ── Watchtower (auto-updates) ────────────────────────────
+  # Monitors labelled containers and pulls new images on a
+  # schedule. Only updates containers with the watchtower
+  # label set to "true" (see above).
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: watchtower-mealie
+    restart: always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      WATCHTOWER_LABEL_ENABLE: "true"
+      WATCHTOWER_CLEANUP: "true"
+      WATCHTOWER_POLL_INTERVAL: ${WATCHTOWER_POLL_INTERVAL:-86400}   # default: every 24 h
+      WATCHTOWER_INCLUDE_STOPPED: "false"
+      TZ: ${TZ:-America/New_York}
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  mealie-data:
+    driver: local
