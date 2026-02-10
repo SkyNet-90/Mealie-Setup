@@ -12,6 +12,8 @@ services:
     image: ghcr.io/mealie-recipes/mealie:${MEALIE_IMAGE_TAG:-v3.10.2}
     container_name: mealie
     restart: always
+    ports:
+      - "9925:9000"   # TEMP: remove after confirming tunnel works
     deploy:
       resources:
         limits:
